@@ -1,6 +1,16 @@
-#For this code, I began by organizing my images. I created a folder for each flight, then in each folder, I created a calibration file in which I manually took images containing photos of my calibration targets before and after each flight. During this code, I go through several "useless" data extraction steps that I don't use afterwards. However, these steps could be useful for other analyses, which is why I extract more files than necessary.
-######################################### PACKAGE #######################################
-library(exifr) #On windows it is needed to install strawberry http://strawberryperl.com/
+#Produce by Orane Mordacq
+#2022
+
+
+##### Radiometric correction
+
+# Some steps detailed below were not used in the paper but could be useful for other analyses.
+# We begin by organizing the images. 
+# We create a folder for each flight, 
+# then in each folder, we add photos of the calibration targets before and after each flight.
+######################################### PACKAGE #################################
+# Load required libraries
+library(exifr) # On windows it is needed to install strawberry http://strawberryperl.com/
 library(raster)
 library(sp)
 library(reshape2)
@@ -8,22 +18,23 @@ library(Rmisc)
 library(ggplot2)
 library(sf)
 
-#Exposition compensation
-######################################### NOTE ###################################
-#I use this script to calculate the correction factor for the exposure compensation from #the EXIF data of the images. I apply these corrections later in the script.
+######################################### EXPOSURE COMPENSATION ##################
+# NOTE: This script calculates the correction factor for exposure compensation
+# from the EXIF data of the images, to be applied later in the script.
 
-######################################### ANALYSE ################################
-# Get a list of folders containing RGB or NIR images
-tempfolder <- list.dirs(path = "*", recursive = TRUE) #* with the direction of your UAV data
-tempfolder <- tempfolder[grep("/RGB|/NIR", tempfolder, value = FALSE)]
+######################################### ANALYZE ################################
+# Organize images by creating folders for each flight and adding calibration 
+# target photos before and after each flight.
+tempfolder <- list.dirs(path = "*", recursive = TRUE) # with the direction of UAV data
+tempfolder <- tempfolder[grep("/RGB|/NIR", tempfolder, value = FALSE)] # for each sensor
 
-# Filter out folders with corrected photos
+# Filter out folders with already corrected photos
 tempfolder <- tempfolder[!grepl("/Corrected_Photo$", tempfolder)]
 
 # Process each flight folder
-
 for (folder in tempfolder) {
   setwd(folder) # Set the working directory
+  
   # Skip if already processed
   if (length(list.files(pattern = "ExposureCompensation.csv$")) > 0 ||
       length(list.files(pattern = ".jpg$")) == 0) {
@@ -50,16 +61,15 @@ for (folder in tempfolder) {
     # Clean up variables
     rm(Correction_factor, exif_data)
   }  
+  
   # Save the correction factors to a CSV file
   write.csv(Dataset, "ExposureCompensation.csv", row.names = FALSE)  
   print("Processing completed")
 }
-Calibration
-#This script is used to draw the shape on my MAPIR Panels, on raw image (without any light #or exposition correction). I extract my correction factor for 3 panels of my calibration #target (light grey, dark gray and black) for few images (for RGB and NIR/RE sensor) take
-#before and after each flight (already selected and placed in a separate folder).
 
-######################################### NOTE ##########################################
-# Calibration data from manufacturer
+
+######################################### CALIBRATION ###################################
+# NOTE: Calibration data from the manufacturer (MAPIR Panel)
 # Red: 650nm -- W 0.87196 -- LG 0.26290 -- DG 0.19854 -- BT 0.01937
 # Green: 548nm -- W 0.86478 -- LG 0.26273 -- DG 0.19274 -- BT 0.01970
 # Blue: 446nm-W 0.78671 -- LG 0.24728 -- DG 0.18221-BT 0.02015
@@ -67,12 +77,12 @@ Calibration
 # Near Infrared: 840nm -- W 0.86252 -- LG 0.27549 -- DG 0.22837 -- BT 0.02146
 # LG is Light Grey; DG is Dark Grey and BT is black
 
-# This script is used to draw the shape on my MAPIR Panels, on raw image (without any light or exposition correction).
-# I extract my correction factor for 3 panels of my calibration target (light grey, dark gray, and black) for a few images
-# taken before and after each flight (already selected and placed in a separate folder).
+# NOTE: This script draws shapes on MAPIR Panels
+# We calculated the correction factor for 3 panels of the calibration 
+# target (light grey, dark gray and black) for few images (6 for RGB and 6 for the NIR/RE sensor) take
+# before and after each flight (already selected and placed in a separate folder).
 
 ######################################### FUNCTION #######################################
-
 # Function to calculate correction factor
 calculateCorrectionFactor <- function(panelName, trueValue, DNData) {
   factor <- trueValue / mean(DNData$DN[grep(panelName, DNData$Var2, value = FALSE)])
@@ -81,120 +91,80 @@ calculateCorrectionFactor <- function(panelName, trueValue, DNData) {
 
 ######################################### ANALYZE #######################################
 # Get a list of folders containing RGB or NIR calibration images
-tempFolders <- list.dirs(path = "*/", recursive = TRUE) #* with the direction of your UAV data
+tempFolders <- list.dirs(path = "*/", recursive = TRUE) # with the direction of your UAV data
 tempFolders <- tempFolders[grep("RGB/Calibration$|/NIR/Calibration$", tempFolders, value = FALSE)]
+
 
 for (folder in tempFolders) {
   setwd(folder)
+  
+  #Create an empty dataset to collect calibration values
+  SumDNData <- NA
   
   if (length(list.files(pattern = "*.jpg.csv$")) == 0) {
     temp <- list.files(pattern = "*.jpg$", recursive = TRUE)
     data_names <- gsub(".jpg", "", temp) # Remove the file extension
     
+    Exposure_Compensation <- read.csv("ExposureCompensation.csv")
+    #Importe exposure compensation already calculated    
+    
     ######################################## Light Grey #######################################
-    # Loop through each image
+    # Start with one panel, next change value, dataset name etc. for the next panel
+    
     for (image in temp) {
+      
       Calibration <- stack(image)
+      Calibration <- Calibration*Exposure_Compensation$Facteur_Correction[Exposure_Compensation$Photos == image]
+      #Importe image and apply exposure compensation already calculated for this image.
+      
       plotRGB(Calibration)
       Calibration <- raster::select(Calibration)
       plotRGB(Calibration)
       cut <- drawPoly()
-      shapefile(cut, file = paste("ShapeLG", image, ".shp", sep = ""), overwrite = TRUE)
-      DNData <- extract(Calibration, cut)
-      write.csv(DNData, file = paste("DNDataLG", image, ".csv", sep = ""), row.names = FALSE)
+      #Write the polygone in a shapefile, if needed later
+      shapefile(cut, file = paste("ShapeLG", image, ".shp", sep = ""), overwrite = TRUE) #LG is Light Grey
+      
+      
+      #Extract DN value with exposure compensation for the light grey panel
+      DNData <- extract(Calibration, cut) #DN is Digital Number
+      #Write a csv with the DN extracted from the part of the image with the Light Grey panel
       DNData <- melt(DNData, variable.name = "Band", value.name = "DN")
-      DNData <- summarySE(DNData, measurevar = "DN", groupvars = "Var2")
-      write.csv(DNData, file = paste("SummaryDNDataLG", image, ".csv", sep = ""), row.names = FALSE)
+      DNData <- summarySE(DNData, measurevar = "DN", groupvars = "Band")
+      #Collect DN for all the LG panel of this folder (by flight/ by sensor)
       SumDNData <- rbind(SumDNData, DNData)
     }
     
     SumDNData <- SumDNData[-1,]
+    #From values defined above
     
     # Calculate correction factors
-    Facteur_Correction_Red <- calculateCorrectionFactor(".1$", 0.26290, SumDNData) # Red
-    Facteur_Correction_Green <- calculateCorrectionFactor(".2$", 0.26273, SumDNData) # Green
-    Facteur_Correction_Blue <- calculateCorrectionFactor(".3$", 0.24728, SumDNData) # Blue
+    Facteur_Correction_Red <- 0.26290/mean(SumDNDataLG$DN[grep(".1$",SumDNDataLG$Var2,value=FALSE)]) #Apply factor correction for each band (RGB here/ Light Grey)
+    Facteur_Correction_Green <- 0.26273/mean(SumDNDataLG$DN[grep(".2$",SumDNDataLG$Var2,value=FALSE)]) 
+    Facteur_Correction_Blue <- 0.24728/mean(SumDNDataLG$DN[grep(".3$",SumDNDataLG$Var2,value=FALSE)])
     #Value for light grey panel, change it for the other panel with manufacturer values.
     
-    # Store correction factors in a data frame
     Facteur_CorrectionLG <- data.frame(
       name = c("Facteur_Correction_Red", "Facteur_Correction_Green", "Facteur_Correction_Blue"),
       value = c(Facteur_Correction_Red, Facteur_Correction_Green, Facteur_Correction_Blue)
     )
     
-    # Save correction factors to a CSV file
-    write.csv(Facteur_CorrectionLG, file = "Facteur_CorrectionLG.csv", row.names = FALSE)
+    write.csv(Facteur_CorrectionLG, file = "Calibrated_Facteur_CorrectionLG.csv", row.names = FALSE)
+    remove(Facteur_CorrectionLG, SumDNDataLG)
+    
   } else {
     print("Already done")
   }
 }
-
 # Clean up variables
-rm(list = c("temp", "data_names", "SumDNData", "Facteur_Correction_Red", "Facteur_Correction_Green", "Facteur_Correction_Blue"))
+rm(list=ls())
 
 ############ DONE --- Change the value, file name, and draw polygon for the next panel
 
 
-Re-do Calibration on with exposure compensation.
-######################################### ANALYSE RGB ####################################
-## Start with RGB image sensor, NIR after
-tempfolder <- list.dirs(path ="*/",recursive = TRUE) #* with the direction of your UAV data
-tempfolder <- tempfolder[grep("RGB/Calibration$",tempfolder,value=FALSE)] 
-
-for (m in 1: length(tempfolder)) {
-  setwd(tempfolder[m])
-  
-  temp <- list.files(pattern = "*.jpg$",recursive = TRUE)
-  data_names <- vector("list",length(temp))
-  
-  for (n in 1: length(temp)) {data_names[n] <- strsplit(temp[n], split=".jpg")}
-  
-  Exposure_Compensation <- read.csv("ExposureCompensation.csv")
-  #Importe exposure compensation already calculated    
-  
-  SumDNDataLG <- NA
-  SumDNDataDG <- NA
-  SumDNDataD <- NA
-  
-  for (i in 1 : length(temp)) {
-    OriginalPhoto <- stack(temp[i])
-    OriginalPhoto <- OriginalPhoto*Exposure_Compensation$Facteur_Correction[Exposure_Compensation$Photos == temp[i]]
-    
-    #Importe image and apply exposure compensation already calculated for this image.
-    
-    cut <- st_read(paste("ShapeLG", temp[i],".shp", sep = ""))
-    #Importe the draw shape to extract DN for light grey panel (same for others panels after)
-    DNData <- extract(OriginalPhoto,cut) #Extract DN value with exposure compensation for the light grey panel
-    DNData <- melt(DNData, variable.name="Band", value.name = "DN") #Puts all the values in one column
-    DNData<- summarySE(DNData, measurevar="DN", groupvars="Var2") #
-    SumDNDataLG <- rbind(SumDNDataLG,DNData) #I store in a dataset all the DN extracted for the light grey panel for this folder
-    
-    #Re do the same for others panels
-  }
-  
-  write.csv(SumDNDataLG,file="Calibrated_SummaryDNDataLG.csv",row.names = FALSE) #Save it
-  write.csv(SumDNDataDG,file="Calibrated_SummaryDNDataDG.csv",row.names = FALSE)
-  write.csv(SumDNDataD,file="Calibrated_SummaryDNDataD.csv",row.names = FALSE)
-  
-  Facteur_Correction_Red <- 0.26290/mean(SumDNDataLG$DN[grep(".1$",SumDNDataLG$Var2,value=FALSE)]) #Apply factor correction for each band (RGB here/ Light Grey)
-  Facteur_Correction_Green <- 0.26273/mean(SumDNDataLG$DN[grep(".2$",SumDNDataLG$Var2,value=FALSE)]) 
-  Facteur_Correction_Blue <- 0.24728/mean(SumDNDataLG$DN[grep(".3$",SumDNDataLG$Var2,value=FALSE)])
-  
-  name<-c("Facteur_Correction_Red","Facteur_Correction_Green","Facteur_Correction_Blue")
-  value<-c(Facteur_Correction_Red,Facteur_Correction_Green,Facteur_Correction_Blue)
-  Facteur_CorrectionLG <- data.frame(name, value)
-  write.csv(Facteur_CorrectionLG,file="Calibrated_Facteur_CorrectionLG.csv",row.names = FALSE) 
-  
-  remove(Facteur_CorrectionLG, SumDNDataLG)
-}
-remove(i, n, m, Exposure_Compensation, tempfolder,Solar_Elevaion, data_names, OriginalPhoto,Solar_corrected_Photo,Exposure_corrected_Photo)
-rm(list=ls())
-
-
-Application of corrections 
+######################################### Application of corrections 
 # Exposure compensation and calibration using previously extracted calibration data
-# Get a list of folders containing RGB images
-tempfolder <- list.dirs(path = "*", recursive = TRUE) #* with the direction of your UAV data
+# Get a list of folders containing for example RGB images
+tempfolder <- list.dirs(path = "*", recursive = TRUE) # with the direction of your UAV data
 tempfolder <- tempfolder[grep("/RGB$|", tempfolder, value = FALSE)]
 
 # Process each RGB folder
@@ -206,7 +176,7 @@ for (folder in tempfolder) {
     next
   }
   
-  # Read the exposure compensation data
+  # Read the exposure compensation file 
   Exposure_Compensation <- read.csv("ExposureCompensation.csv", stringsAsFactors = FALSE)
   
   # Get the calibration folder for this flight
@@ -248,7 +218,7 @@ for (folder in tempfolder) {
       OriginalPhoto <- OriginalPhoto * mean(Exposure_Compensation$Facteur_Correction)
     }
     
-    # Apply correction factors
+    # Apply correction factors for each wavelenght (change it if you also have NIR photo or other wavelenghts)
     OriginalPhoto[[1]] <- OriginalPhoto[[1]] * Correction_Red
     OriginalPhoto[[2]] <- OriginalPhoto[[2]] * Correction_Green
     OriginalPhoto[[3]] <- OriginalPhoto[[3]] * Correction_Blue
@@ -267,12 +237,14 @@ for (folder in tempfolder) {
   
   print(folder)
 }
-EXIF application
-#After correction, I need to reaply the old EXIF image on my new corrected image
-######################################### ANALYSE #######################################
 
-tempfolder <- list.dirs(path ="*/",recursive = TRUE) #* with the direction of your UAV data
-tempfolder < - tempfolder[grep("RGB/Corrected_Photo$| NIR/Corrected_Photo$",tempfolder,value=FALSE)] 
+
+#EXIF application
+#Last step, after correction, apply the old EXIF image on the new corrected image
+######################################### ANALYZE #######################################
+
+tempfolder <- list.dirs(path ="*/",recursive = TRUE) # with the direction of your UAV data
+tempfolder <- tempfolder[grep("RGB/Corrected_Photo$| NIR/Corrected_Photo$",tempfolder,value=FALSE)] #already corrected photo 
 
 #For each corrected folder
 for (folder in tempfolder) {
@@ -302,4 +274,5 @@ for (folder in tempfolder) {
     print(folder) # Indicates folders that have already been processed
   }
 }
-  
+
+rm(list=ls())
