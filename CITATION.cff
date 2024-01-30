@@ -32,10 +32,10 @@ preferred-citation:
     orcid: "https://orcid.org/0000-0003-1048-9674"
   doi: "10.0000/00000"
   journal: "XXXX"
-  month: X
-  start: X # First page number
-  end: X # Last page number
+  month: 1
+  start: 1 # First page number
+  end: 2 # Last page number
   title: "Tree diversity impacts spring and autumn leaf phenology in temperate trees"
-  issue: X
-  volume: X
+  issue: 1
+  volume: 1
   year: 2024
