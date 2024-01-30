@@ -9,33 +9,3 @@ version: 1.0.0
 doi: 10.5281/zenodo.1234
 date-released: 2024-01-30
 url: "https://github.com/OraneM31/UAV_Radiometric_corrections"
-preferred-citation:
-  type: article
-  authors:
-  - family-names: "Mordacq"
-    given-names: "Orane"
-    orcid: "https://orcid.org/0009-0008-0182-1501"
-  - family-names: "Belluau"
-    given-names: "Michael"
-    orcid: "https://orcid.org/0000-0001-6707-546X"
-  - family-names: "Lapa"
-    given-names: "Gauthier"
-    orcid: "https://orcid.org/0000-0002-1490-5201"
-  - family-names: "van Bodegom"
-    given-names: "Peter"
-    orcid: "https://orcid.org/0000-0003-0771-4500"
-  - family-names: "Niinemets"
-    given-names: "Ülo"
-    orcid: "https://orcid.org/0000-0002-3078-2192"
-  - family-names: "Paquette"
-    given-names: "Alain"
-    orcid: "https://orcid.org/0000-0003-1048-9674"
-  doi: "10.0000/00000"
-  journal: "XXXX"
-  month: 1
-  start: 1 # First page number
-  end: 2 # Last page number
-  title: "Tree diversity impacts spring and autumn leaf phenology in temperate trees"
-  issue: 1
-  volume: 1
-  year: 2024
